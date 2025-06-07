@@ -207,13 +207,13 @@
         const appsWidget = document.getElementById('appsWidget');
         const appsGrid = document.getElementById('appsGrid');
         
-        // --- ЛОГИКА ФОНА (ВИДЕО) ---
-        const apiKey = 'YXZ2IncmbKIk9NURt3IZR0ZRyu6tNRwqOlZOSTyJzsAm4RCi3veaQevb';
+        // --- ИЗМЕНЕНИЕ: ЛОГИКА ФОНА (ВИДЕО) ---
         function setNewVideo() {
             videoBg.style.opacity = '0';
             const queries = ['nature', 'ocean', 'city', 'space', 'abstract', 'sky', 'forest', 'mountains'];
             const query = queries[Math.floor(Math.random() * queries.length)];
-            fetch(`https://api.pexels.com/videos/search?query=${query}&per_page=20&orientation=landscape`, { headers: { Authorization: apiKey } })
+            // Обращаемся к нашей собственной прокси-функции на Vercel
+            fetch(`/api/pexels?query=${query}`)
             .then(res => res.ok ? res.json() : Promise.reject('Network error'))
             .then(data => {
                 if (data.videos && data.videos.length > 0) {
@@ -311,7 +311,7 @@
                 const domain = new URL(app.url).hostname;
                 const item = document.createElement('div');
                 item.className = 'app-item';
-                item.innerHTML = `<a href="${app.url}" class="app-link" target="_blank" rel="noopener noreferrer"><img src="https://www.google.com/s2/favicons?domain=${domain}&sz=64" alt="${app.name}" class="app-icon"><span class="app-name">${app.name}</span></a><button class="delete-app-btn" title="Удалить">&times;</button>`;
+                item.innerHTML = `<a href="${app.url}" class="app-link" target="_blank" rel="noopener noreferrer"><img src="https://www.google.com/s2/favicons?domain=${domain}&sz=64" alt="${app.name}" class="app-icon"><span class="app-name">${app.name}</span></a><button class="delete-app-btn" title="Удалить">×</button>`;
                 item.querySelector('.delete-app-btn').onclick = (e) => { e.preventDefault(); deleteApp(index); };
                 appsGrid.appendChild(item);
             });

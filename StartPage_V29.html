@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Новая вкладка</title>
+    <style>
+        /* --- ИЗМЕНЕНИЕ: Добавлены CSS-переменные для управления цветом --- */
+        :root {
+            --hub-hue: 210;          /* Тон (0-360) */
+            --hub-saturation: 25%;   /* Насыщенность (0-100%) */
+            --hub-lightness: 60%;    /* Светлота (для базового цвета) */
+            --hub-alpha: 0.2;        /* Прозрачность (0-1) */
+        }
+
+        body, html {
+            margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #2c2c2c;
+        }
+        
+        .background-container {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1;
+        }
+        
+        #bgImage {
+            width: 100%; height: 100%; object-fit: cover;
+            transform: scale(1.05); transition: opacity 0.5s ease-in-out; opacity: 0;
+        }
+
+        .content-container {
+            position: relative; z-index: 2; height: 100%;
+        }
+
+        /* --- СТИЛИ ДЛЯ ГЛАВНОГО ХАБА (ГЛАССМОРФИЗМ) --- */
+        .main-hub {
+            position: fixed;
+            bottom: 25px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 15px;
+
+            /* --- ИЗМЕНЕНИЕ: Фон управляется через CSS-переменные --- */
+            background: hsla(var(--hub-hue), var(--hub-saturation), var(--hub-lightness), var(--hub-alpha));
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+            transition: background-color 0.3s ease; /* Убрано 'all' для плавной смены цвета */
+        }
+
+        #clock { font-size: 20px; font-weight: 500; color: #fff; padding: 0 5px; }
+
+        .search-container { display: flex; align-items: center; order: 3; }
+        #searchInput {
+            border: none; background: transparent; outline: none; color: white; font-size: 16px;
+            width: 0; padding: 0; opacity: 0; transition: all 0.4s ease-in-out;
+        }
+        #searchInput::placeholder { color: rgba(255, 255, 255, 0.7); }
+        .main-hub.search-active .search-container {
+            background-color: rgba(0, 0, 0, 0.2); padding-left: 5px; border-radius: 10px;
+        }
+        .main-hub.search-active #searchInput { width: 250px; opacity: 1; padding: 5px 10px 5px 5px; }
+        
+        .hub-btn {
+            border: none; background: transparent; cursor: pointer; padding: 8px;
+            display: flex; align-items: center; justify-content: center;
+            border-radius: 10px; transition: background-color 0.3s;
+        }
+        .hub-btn:hover { background-color: rgba(255, 255, 255, 0.2); }
+        
+        #settingsBtn { order: 2; }
+        .apps-container { order: 4; }
+        #changeBgBtn { order: 5; }
+
+        #slidersContainer {
+            position: absolute; bottom: calc(100% + 10px); left: 50%;
+            transform: translateX(-50%);
+            display: flex; flex-direction: column; gap: 12px;
+            width: 170px; padding: 15px;
+            /* --- ИЗМЕНЕНИЕ: Фон управляется через CSS-переменные --- */
+            background: hsla(var(--hub-hue), var(--hub-saturation), calc(var(--hub-lightness) - 10%), calc(var(--hub-alpha) + 0.1));
+            backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+            border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1);
+            opacity: 0; visibility: hidden; transition: all 0.3s ease;
+        }
+        .main-hub.sliders-visible #slidersContainer { opacity: 1; visibility: visible; }
+        input[type="range"] { cursor: pointer; margin: 0; width: 100%; }
+
+        #appsWidget {
+            position: absolute;
+            bottom: calc(100% + 10px);
+            left: 50%;
+            width: 320px; min-width: 300px; padding: 15px;
+            
+            /* --- ИЗМЕНЕНИЕ: Фон виджета приложений также управляется переменными, но он темнее и менее прозрачный для читаемости --- */
+            background: hsla(var(--hub-hue), calc(var(--hub-saturation) / 2), calc(var(--hub-lightness) - 30%), calc(var(--hub-alpha) + 0.5));
+            backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.18);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+
+            opacity: 0; visibility: hidden;
+            transform-origin: bottom center;
+            transition: opacity 0.3s ease, transform 0.3s ease, visibility 0.3s, background-color 0.3s ease;
+            transform: translateX(-50%) translateY(10px) scale(0.95);
+        }
+        .main-hub.apps-visible #appsWidget {
+            opacity: 1; visibility: visible;
+            transform: translateX(-50%) translateY(0) scale(1);
+        }
+        
+        #appsGrid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+            gap: 12px;
+        }
+        .app-item { position: relative; }
+        .app-link, #addAppBtn {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            text-decoration: none; color: white;
+            padding: 12px 5px;
+            border-radius: 12px; background-color: rgba(0, 0, 0, 0.25);
+            transition: background-color 0.3s;
+            box-sizing: border-box;
+        }
+        .app-link:hover, #addAppBtn:hover { background-color: rgba(0, 0, 0, 0.5); }
+        .app-icon { width: 32px; height: 32px; margin-bottom: 8px; border-radius: 8px; flex-shrink: 0; }
+        #addAppBtn {
+             cursor: pointer; border: 2px dashed rgba(255, 255, 255, 0.5); background: none;
+             min-height: 84px;
+        }
+        #addAppBtn:hover { background-color: rgba(0, 0, 0, 0.2); border-color: rgba(255, 255, 255, 0.8); }
+        .app-name {
+            font-size: 12px; text-align: center;
+            line-height: 1.2;
+            word-break: break-word;
+        }
+        .delete-app-btn {
+            position: absolute; top: 0; right: 0; width: 18px; height: 18px;
+            border-radius: 50%; border: none; background-color: rgba(0, 0, 0, 0.7);
+            color: white; cursor: pointer; display: none; align-items: center;
+            justify-content: center; font-size: 12px; padding: 0;
+        }
+        .app-item:hover .delete-app-btn { display: flex; }
+    </style>
+</head>
+<body>
+
+    <div class="background-container">
+        <video id="bgImage" autoplay muted loop playsinline></video>
+    </div>
+
+    <div class="content-container">
+        <div class="main-hub" id="mainHub">
+            <div id="slidersContainer">
+                <label style="font-size: 12px; color: white; opacity: 0.8;">Фон:</label>
+                <input type="range" id="blurSlider" min="0" max="25" step="1" title="Размытие">
+                <input type="range" id="brightnessSlider" min="20" max="100" step="1" title="Затемнение">
+                
+                <!-- --- ИЗМЕНЕНИЕ: Добавлен разделитель и новые слайдеры для цвета --- -->
+                <hr style="border: none; height: 1px; background-color: rgba(255,255,255,0.2); margin: 8px 0;">
+                <label style="font-size: 12px; color: white; opacity: 0.8;">Интерфейс:</label>
+                <input type="range" id="hueSlider" min="0" max="360" step="1" title="Тон">
+                <input type="range" id="saturationSlider" min="0" max="100" step="1" title="Насыщенность">
+                <input type="range" id="alphaSlider" min="10" max="80" step="1" title="Прозрачность панели">
+            </div>
+            <div id="appsWidget">
+                <div id="appsGrid"></div>
+            </div>
+
+            <div id="clock" style="order: 1;">00:00</div>
+            
+            <button id="settingsBtn" class="hub-btn" title="Настройки">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 15.5C14.4853 15.5 16.5 13.4853 16.5 11C16.5 8.51472 14.4853 6.5 12 6.5C9.51472 6.5 7.5 8.51472 7.5 11C7.5 13.4853 9.51472 15.5 12 15.5Z" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M19.4 15L21.5 16.4C21.8 16.6 22 17.1 22 17.5V19.5C22 19.9 21.8 20.4 21.5 20.6L19.4 22C19 22.2 18.5 22.2 18.1 22L16 20.5M4.6 15L2.5 16.4C2.2 16.6 2 17.1 2 17.5V19.5C2 19.9 2.2 20.4 2.5 20.6L4.6 22C5 22.2 5.5 22.2 5.9 22L8 20.5M19.4 9.00001L21.5 7.60001C21.8 7.40001 22 6.90001 22 6.50001V4.5C22 4.1 21.8 3.60001 21.5 3.40001L19.4 2C19 1.8 18.5 1.8 18.1 2L16 3.5M4.6 9.00001L2.5 7.60001C2.2 7.40001 2 6.90001 2 6.50001V4.5C2 4.1 2.2 3.60001 2.5 3.40001L4.6 2C5 1.8 5.5 1.8 5.9 2L8 3.5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+
+            <div class="search-container">
+                <button id="searchBtn" class="hub-btn">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M11 19C15.4183 19 19 15.4183 19 11C19 6.58172 15.4183 3 11 3C6.58172 3 3 6.58172 3 11C3 15.4183 6.58172 19 11 19Z" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 21L16.65 16.65" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+                <input type="text" id="searchInput" placeholder="Поиск Google...">
+            </div>
+
+            <div class="apps-container">
+                <button id="appsBtn" class="hub-btn" title="Приложения">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M3 3H8V8H3V3ZM4 4V7H7V4H4Z" fill="white"/><path fill-rule="evenodd" clip-rule="evenodd" d="M9 3H14V8H9V3ZM10 4V7H13V4H10Z" fill="white"/><path fill-rule="evenodd" clip-rule="evenodd" d="M15 3H20V8H15V3ZM16 4V7H19V4H16Z" fill="white"/><path fill-rule="evenodd" clip-rule="evenodd" d="M3 9H8V14H3V9ZM4 10V13H7V10H4Z" fill="white"/><path fill-rule="evenodd" clip-rule="evenodd" d="M9 9H14V14H9V9ZM10 10V13H13V10H10Z" fill="white"/><path fill-rule="evenodd" clip-rule="evenodd" d="M15 9H20V14H15V9ZM16 10V13H19V10H16Z" fill="white"/><path fill-rule="evenodd" clip-rule="evenodd" d="M3 15H8V20H3V15ZM4 16V19H7V16H4Z" fill="white"/><path fill-rule="evenodd" clip-rule="evenodd" d="M9 15H14V20H9V15ZM10 16V19H13V16H10Z" fill="white"/><path fill-rule="evenodd" clip-rule="evenodd" d="M15 15H20V20H15V15ZM16 16V19H19V16H16Z" fill="white"/></svg>
+                </button>
+            </div>
+
+            <button id="changeBgBtn" class="hub-btn" title="Сменить фон">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M21.25 10.8642L18.7844 14.4332C18.3188 15.1112 17.3513 15.1594 16.8212 14.5245L16.2323 13.804C15.684 13.1499 14.7358 13.1499 14.1875 13.804L11.75 16.75C11.1 17.5188 9.9 17.5188 9.25 16.75L8.75 16.125C8.1 15.3562 6.9 15.3562 6.25 16.125L2.75 20.25" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><rect x="2" y="3" width="20" height="18" rx="4" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="16.5" cy="7.5" r="1.5" fill="white"/></svg>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const mainHub = document.getElementById('mainHub');
+        const videoBg = document.getElementById('bgImage');
+        const searchBtn = document.getElementById('searchBtn');
+        const searchInput = document.getElementById('searchInput');
+        const settingsBtn = document.getElementById('settingsBtn');
+        const appsBtn = document.getElementById('appsBtn');
+        const appsWidget = document.getElementById('appsWidget');
+        const appsGrid = document.getElementById('appsGrid');
+        
+        // --- ЛОГИКА ФОНА (ВИДЕО) ---
+        const apiKey = 'YXZ2IncmbKIk9NURt3IZR0ZRyu6tNRwqOlZOSTyJzsAm4RCi3veaQevb';
+        function setNewVideo() {
+            videoBg.style.opacity = '0';
+            const queries = ['nature', 'ocean', 'city', 'space', 'abstract', 'sky', 'forest', 'mountains'];
+            const query = queries[Math.floor(Math.random() * queries.length)];
+            fetch(`https://api.pexels.com/videos/search?query=${query}&per_page=20&orientation=landscape`, { headers: { Authorization: apiKey } })
+            .then(res => res.ok ? res.json() : Promise.reject('Network error'))
+            .then(data => {
+                if (data.videos && data.videos.length > 0) {
+                    const video = data.videos[Math.floor(Math.random() * data.videos.length)];
+                    const file = video.video_files.find(f => f.quality === 'hd') || video.video_files[0];
+                    videoBg.src = file.link;
+                    videoBg.oncanplay = () => { videoBg.style.opacity = '1'; };
+                }
+            }).catch(console.error);
+        }
+        document.getElementById('changeBgBtn').addEventListener('click', setNewVideo);
+        
+        // --- ЛОГИКА ЧАСОВ ---
+        const clockElement = document.getElementById('clock');
+        function updateTime() { clockElement.textContent = new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }); }
+        updateTime(); setInterval(updateTime, 1000);
+
+        // --- УЛУЧШЕННАЯ ЛОГИКА ОТКРЫТИЯ ВИДЖЕТОВ В ХАБЕ ---
+        function closeAllPopups() {
+            mainHub.classList.remove('search-active', 'sliders-visible', 'apps-visible');
+        }
+
+        searchBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isActive = mainHub.classList.contains('search-active');
+            closeAllPopups();
+            if (!isActive) {
+                mainHub.classList.add('search-active');
+                searchInput.focus();
+            }
+        });
+        
+        settingsBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isActive = mainHub.classList.contains('sliders-visible');
+            closeAllPopups();
+            if (!isActive) mainHub.classList.add('sliders-visible');
+        });
+
+        appsBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isActive = mainHub.classList.contains('apps-visible');
+            closeAllPopups();
+            if (!isActive) mainHub.classList.add('apps-visible');
+        });
+
+        searchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && searchInput.value.trim()) {
+                window.location.href = `https://www.google.com/search?q=${encodeURIComponent(searchInput.value.trim())}`;
+            }
+        });
+
+        // --- ЛОГИКА НАСТРОЕК ФОНА (РАЗМЫТИЕ И ЯРКОСТЬ) ---
+        const blurSlider = document.getElementById('blurSlider');
+        const brightnessSlider = document.getElementById('brightnessSlider');
+        const BLUR_KEY = 'bgBlurValue', BRIGHT_KEY = 'bgBrightnessValue';
+        function updateBgFilters() { videoBg.style.filter = `blur(${blurSlider.value}px) brightness(${brightnessSlider.value}%)`; }
+        blurSlider.addEventListener('input', () => { updateBgFilters(); localStorage.setItem(BLUR_KEY, blurSlider.value); });
+        brightnessSlider.addEventListener('input', () => { updateBgFilters(); localStorage.setItem(BRIGHT_KEY, brightnessSlider.value); });
+        
+        /* --- ИЗМЕНЕНИЕ: ЛОГИКА ДЛЯ НАСТРОЕК ЦВЕТА ИНТЕРФЕЙСА --- */
+        const hueSlider = document.getElementById('hueSlider');
+        const saturationSlider = document.getElementById('saturationSlider');
+        const alphaSlider = document.getElementById('alphaSlider');
+        const HUE_KEY = 'hubHue', SAT_KEY = 'hubSaturation', ALPHA_KEY = 'hubAlpha';
+        function updateHubColors() {
+            const root = document.documentElement;
+            root.style.setProperty('--hub-hue', hueSlider.value);
+            root.style.setProperty('--hub-saturation', saturationSlider.value + '%');
+            root.style.setProperty('--hub-alpha', alphaSlider.value / 100);
+        }
+        hueSlider.addEventListener('input', () => { updateHubColors(); localStorage.setItem(HUE_KEY, hueSlider.value); });
+        saturationSlider.addEventListener('input', () => { updateHubColors(); localStorage.setItem(SAT_KEY, saturationSlider.value); });
+        alphaSlider.addEventListener('input', () => { updateHubColors(); localStorage.setItem(ALPHA_KEY, alphaSlider.value); });
+
+        // --- ЛОГИКА ДЛЯ ВИДЖЕТА ПРИЛОЖЕНИЙ ---
+        const APPS_KEY = 'savedAppsList';
+        const defaultApps = [{ name: 'YouTube', url: 'https://youtube.com' }, { name: 'VK', url: 'https://vk.com' }, { name: 'GitHub', url: 'https://github.com' }];
+        function loadApps() { return JSON.parse(localStorage.getItem(APPS_KEY)) || defaultApps; }
+        function saveApps(apps) { localStorage.setItem(APPS_KEY, JSON.stringify(apps)); }
+        function addApp() {
+            let url = prompt("Введите URL сайта:", "https://");
+            if (!url || url.trim() === 'https://') return;
+            try {
+                let name = new URL(url).hostname.replace('www.', '').split('.')[0];
+                let apps = loadApps();
+                apps.push({ name: name.charAt(0).toUpperCase() + name.slice(1), url });
+                saveApps(apps); renderApps();
+            } catch (e) { alert("Некорректный URL."); }
+        }
+        function deleteApp(index) { let apps = loadApps(); apps.splice(index, 1); saveApps(apps); renderApps(); }
+        function renderApps() {
+            appsGrid.innerHTML = '';
+            loadApps().forEach((app, index) => {
+                const domain = new URL(app.url).hostname;
+                const item = document.createElement('div');
+                item.className = 'app-item';
+                item.innerHTML = `<a href="${app.url}" class="app-link" target="_blank" rel="noopener noreferrer"><img src="https://www.google.com/s2/favicons?domain=${domain}&sz=64" alt="${app.name}" class="app-icon"><span class="app-name">${app.name}</span></a><button class="delete-app-btn" title="Удалить">&times;</button>`;
+                item.querySelector('.delete-app-btn').onclick = (e) => { e.preventDefault(); deleteApp(index); };
+                appsGrid.appendChild(item);
+            });
+            const addBtn = document.createElement('div');
+            addBtn.id = 'addAppBtn';
+            addBtn.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24"><path d="M12 5V19" stroke="white" stroke-width="2" stroke-linecap="round"/><path d="M5 12H19" stroke="white" stroke-width="2" stroke-linecap="round"/></svg>`;
+            addBtn.title = 'Добавить сайт';
+            addBtn.onclick = addApp;
+            appsGrid.appendChild(addBtn);
+        }
+
+        // --- ОБРАБОТЧИК КЛИКА ВНЕ ВИДЖЕТОВ ---
+        document.addEventListener('click', (e) => {
+            if (!mainHub.contains(e.target)) {
+                closeAllPopups();
+            }
+        });
+
+        // --- ПЕРВОНАЧАЛЬНАЯ ЗАГРУЗКА ---
+        document.addEventListener('DOMContentLoaded', () => {
+            setNewVideo();
+            // Загрузка настроек фона
+            blurSlider.value = localStorage.getItem(BLUR_KEY) || 8;
+            brightnessSlider.value = localStorage.getItem(BRIGHT_KEY) || 70;
+            updateBgFilters();
+            
+            // --- ИЗМЕНЕНИЕ: Загрузка сохраненных настроек цвета или установка значений по умолчанию ---
+            hueSlider.value = localStorage.getItem(HUE_KEY) || 210;
+            saturationSlider.value = localStorage.getItem(SAT_KEY) || 25;
+            alphaSlider.value = localStorage.getItem(ALPHA_KEY) || 20;
+            updateHubColors();
+
+            renderApps();
+        });
+    </script>
+</body>
+</html>
